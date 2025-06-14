@@ -27,7 +27,8 @@ def get_page_hash():
         soup = BeautifulSoup(res.content, "html.parser")
         content = soup.get_text()
         return hashlib.md5(content.encode("utf-8")).hexdigest()
-    except:
+    except Exception as e:
+        print("ハッシュ取得エラー:", e)
         return None
 
 # ページ変更監視スレッド
@@ -50,20 +51,20 @@ def monitor():
             if current_hash != last_hash:
                 line_bot_api.push_message(
                     USER_ID,
-                    TextSendMessage(text="📢 Webページが更新されました！\n" + CHECK_URL)
+                    TextSendMessage(text=f"📢 Webページが更新されました！\n{CHECK_URL}")
                 )
                 with open("last_hash.txt", "w") as f:
                     f.write(current_hash)
         except Exception as e:
-            print("エラー:", e)
+            print("監視エラー:", e)
         time.sleep(300)  # 5分ごとにチェック
 
 # Webhook エンドポイント
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers['X-Line-Signature']
+    signature = request.headers.get('X-Line-Signature', '')
     body = request.get_data(as_text=True)
-    print("Request body: " + body)
+    print("Request body:", body)
 
     try:
         handler.handle(body, signature)
@@ -81,12 +82,10 @@ def handle_message(event):
         TextSendMessage(text=reply)
     )
 
-# 起動確認用
+# 動作確認用
 @app.route("/")
 def index():
-    return "Web Monitor Bot is running!"
+    return "✅ Web Monitor Bot is running!"
 
-# アプリ起動
-if __name__ == "__main__":
-    threading.Thread(target=monitor).start()
-    app.run(host="0.0.0.0", port=3000)
+# 監視スレッドをバックグラウンドで起動（Render + gunicorn対応）
+threading.Thread(target=monitor, daemon=True).start()
